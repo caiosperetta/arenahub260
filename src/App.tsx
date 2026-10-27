@@ -20,12 +20,14 @@ import PortalCliente from './pages/PortalCliente';
 import ConfirmacaoReserva from './pages/ConfirmacaoReserva';
 import MinhasReservas from './pages/MinhasReservas';
 import PerfilCliente from './pages/PerfilCliente';
+import ClienteLogin from './pages/ClienteLogin';
+import ClienteCadastro from './pages/ClienteCadastro';
 
 function App() {
   return (
     <Routes>
       <Route element={<LandingLayout />}>
-        <Route path="/landing" element={<Landing />} />
+        <Route path="/" element={<Landing />} />
       </Route>
 
       <Route path="/login" element={<Login />} />
@@ -38,21 +40,24 @@ function App() {
           </ProtectedRoute>
         }
       >
-        <Route path="/" element={<Dashboard />} />
-        <Route path="/reservas" element={<Reservas />} />
-        <Route path="/reservas/:id" element={<DetalheReserva />} />
-        <Route path="/quadras" element={<Quadras />} />
-        <Route path="/clientes" element={<Clientes />} />
-        <Route path="/clientes/:id" element={<DetalheCliente />} />
-        <Route path="/financeiro" element={<Financeiro />} />
-        <Route path="/configuracoes" element={<Configuracoes />} />
+        <Route path="/app" element={<Dashboard />} />
+        <Route path="/app/reservas" element={<Reservas />} />
+        <Route path="/app/reservas/:id" element={<DetalheReserva />} />
+        <Route path="/app/quadras" element={<Quadras />} />
+        <Route path="/app/clientes" element={<Clientes />} />
+        <Route path="/app/clientes/:id" element={<DetalheCliente />} />
+        <Route path="/app/financeiro" element={<Financeiro />} />
+        <Route path="/app/configuracoes" element={<Configuracoes />} />
       </Route>
 
+      <Route path="/:slug/login" element={<ClienteLogin />} />
+      <Route path="/:slug/cadastro" element={<ClienteCadastro />} />
+
       <Route element={<ClientLayout />}>
-        <Route path="/:slug" element={<PortalCliente />} />
         <Route path="/:slug/confirmacao" element={<ConfirmacaoReserva />} />
         <Route path="/:slug/minhas-reservas" element={<MinhasReservas />} />
         <Route path="/:slug/perfil" element={<PerfilCliente />} />
+        <Route path="/:slug" element={<PortalCliente />} />
       </Route>
     </Routes>
   );

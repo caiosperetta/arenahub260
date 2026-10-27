@@ -9,6 +9,7 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import { cn } from '../lib/cn';
+import { useAuth } from '../contexts/AuthContext';
 
 interface NavItem {
   label: string;
@@ -17,21 +18,27 @@ interface NavItem {
 }
 
 const navItems: NavItem[] = [
-  { label: 'Home', to: '/', icon: LayoutDashboard },
-  { label: 'Reservas', to: '/reservas', icon: CalendarCheck },
-  { label: 'Quadras', to: '/quadras', icon: Map },
-  { label: 'Clientes', to: '/clientes', icon: Users },
-  { label: 'Financeiro', to: '/financeiro', icon: Wallet },
-  { label: 'Configurações', to: '/configuracoes', icon: Settings },
+  { label: 'Home', to: '/app', icon: LayoutDashboard },
+  { label: 'Reservas', to: '/app/reservas', icon: CalendarCheck },
+  { label: 'Quadras', to: '/app/quadras', icon: Map },
+  { label: 'Clientes', to: '/app/clientes', icon: Users },
+  { label: 'Financeiro', to: '/app/financeiro', icon: Wallet },
+  { label: 'Configurações', to: '/app/configuracoes', icon: Settings },
 ];
 
 export default function Sidebar() {
+  const { tenant } = useAuth();
+
   return (
     <aside className="fixed inset-y-0 left-0 flex w-[240px] flex-col bg-[var(--color-dark)]">
-      <div className="flex h-16 items-center px-6">
-        <span className="text-lg font-medium text-white">
-          Arena<span className="text-[var(--color-primary)]">Hub</span>
-        </span>
+      <div className="flex h-16 items-center gap-2.5 px-6">
+        {tenant?.logo_url ? (
+          <img src={tenant.logo_url} alt={tenant.name} className="h-8 w-auto max-w-[120px] object-contain" />
+        ) : (
+          <span className="text-lg font-medium text-white">
+            Arena<span className="text-[var(--color-primary)]">Hub</span>
+          </span>
+        )}
       </div>
 
       <nav className="flex flex-1 flex-col gap-1 px-3 py-2">
@@ -39,7 +46,7 @@ export default function Sidebar() {
           <NavLink
             key={to}
             to={to}
-            end={to === '/'}
+            end={to === '/app'}
             className={({ isActive }) =>
               cn(
                 'flex items-center gap-3 rounded-[var(--radius-md)] px-3 py-2.5 text-sm transition-colors',

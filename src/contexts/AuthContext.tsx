@@ -1,29 +1,9 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
 import type { User } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
+import type { Profile, Tenant, UserRole } from '../types';
 
-export type UserRole = 'super_admin' | 'admin' | 'staff' | 'client';
-
-export interface Profile {
-  id: string;
-  tenant_id: string | null;
-  full_name: string;
-  phone: string | null;
-  role: UserRole;
-  avatar_url: string | null;
-  created_at: string;
-}
-
-export interface Tenant {
-  id: string;
-  name: string;
-  slug: string;
-  logo_url: string | null;
-  primary_color: string;
-  plan: 'basico' | 'profissional' | 'enterprise';
-  active: boolean;
-  created_at: string;
-}
+export type { UserRole, Profile, Tenant };
 
 interface ProfileWithTenant extends Profile {
   tenant: Tenant | null;
@@ -36,6 +16,7 @@ interface AuthContextValue {
   loading: boolean;
   signIn: (email: string, password: string) => Promise<{ error: string | null }>;
   signOut: () => Promise<void>;
+  refetchProfile: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
@@ -61,13 +42,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         .eq('id', userId)
         .single();
 
-      const timeoutPromise = new Promise<{ data: null; error: Error }>((resolve) => {
+      const timeoutPromise = new Promise<{ data: null; error: Error; status?: number }>((resolve) => {
         setTimeout(() => resolve({ data: null, error: new Error('Tempo esgotado ao buscar perfil') }), PROFILE_FETCH_TIMEOUT_MS);
       });
 
-      const { data, error } = await Promise.race([queryPromise, timeoutPromise]);
+      const { data, error, status } = await Promise.race([queryPromise, timeoutPromise]);
 
-      if (error || !data) {
+      if (error) {
+        console.error('Erro ao buscar perfil:', error);
+        if (status === 403) {
+          console.error('RLS policy blocking profile read — check Supabase policies');
+        }
+        setProfile(null);
+        setTenant(null);
+        return;
+      }
+
+      if (!data) {
+        console.error('Profile not found for user ID: ' + userId);
         setProfile(null);
         setTenant(null);
         return;
@@ -118,8 +110,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await supabase.auth.signOut();
   }, []);
 
+  const refetchProfile = useCallback(async () => {
+    if (user) {
+      await fetchProfile(user.id);
+    }
+  }, [user, fetchProfile]);
+
   return (
-    <AuthContext.Provider value={{ user, profile, tenant, loading, signIn, signOut }}>
+    <AuthContext.Provider value={{ user, profile, tenant, loading, signIn, signOut, refetchProfile }}>
       {children}
     </AuthContext.Provider>
   );

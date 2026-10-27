@@ -1,100 +1,132 @@
-import { Search, Plus, Eye, MessageCircle, Pencil } from 'lucide-react';
+import { Search, Eye, Users, AlertCircle } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import Card from '../components/Card';
 import Badge from '../components/Badge';
-import Button from '../components/Button';
+import Input from '../components/Input';
 import { useAdminHeader } from '../layouts/AdminHeaderContext';
+import { useClientes } from '../hooks/useClientes';
+import type { ClientWithStats } from '../types';
 
-interface ClientRow {
-  name: string;
-  initials: string;
-  avatarBg: string;
-  phone: string;
-  total: number;
-  plan: 'confirmed' | 'inactive';
-  planLabel: string;
-  lastBooking: string;
+function formatDate(dateStr: string | null): string {
+  if (!dateStr) return '—';
+  const [year, month, day] = dateStr.split('-');
+  return `${day}/${month}/${year}`;
 }
 
-const clients: ClientRow[] = [
-  { name: 'Maria Silva', initials: 'MS', avatarBg: 'var(--color-primary-light)', phone: '(16) 99123-1111', total: 24, plan: 'confirmed', planLabel: 'Mensalista', lastBooking: '07/08/2026' },
-  { name: 'Pedro Santos', initials: 'PS', avatarBg: 'var(--color-info-bg)', phone: '(16) 99123-2222', total: 6, plan: 'inactive', planLabel: 'Avulso', lastBooking: '07/08/2026' },
-  { name: 'Ana Costa', initials: 'AC', avatarBg: 'var(--color-warning-bg)', phone: '(16) 99123-3333', total: 18, plan: 'confirmed', planLabel: 'Mensalista', lastBooking: '07/08/2026' },
-  { name: 'Lucas Almeida', initials: 'LA', avatarBg: 'var(--color-error-bg)', phone: '(16) 99123-4444', total: 3, plan: 'inactive', planLabel: 'Avulso', lastBooking: '05/08/2026' },
-  { name: 'Fernanda Lima', initials: 'FL', avatarBg: 'var(--color-primary-light)', phone: '(16) 99123-5555', total: 31, plan: 'confirmed', planLabel: 'Mensalista', lastBooking: '08/08/2026' },
-  { name: 'Rafael Souza', initials: 'RS', avatarBg: 'var(--color-info-bg)', phone: '(16) 99123-6666', total: 9, plan: 'inactive', planLabel: 'Avulso', lastBooking: '08/08/2026' },
-  { name: 'Beatriz Nunes', initials: 'BN', avatarBg: 'var(--color-warning-bg)', phone: '(16) 99123-7777', total: 2, plan: 'inactive', planLabel: 'Avulso', lastBooking: '02/08/2026' },
-  { name: 'Carlos Rezende', initials: 'CR', avatarBg: 'var(--color-primary-light)', phone: '(16) 99123-8888', total: 40, plan: 'confirmed', planLabel: 'Mensalista', lastBooking: '09/08/2026' },
-];
+function getInitials(fullName: string): string {
+  const parts = fullName.trim().split(/\s+/).filter(Boolean);
+  return parts
+    .slice(0, 2)
+    .map((p) => p[0])
+    .join('')
+    .toUpperCase();
+}
 
-const gridCols = 'grid-cols-[2fr_1.3fr_1fr_1fr_1.1fr_0.8fr]';
+const AVATAR_BG = ['#DCFCE7', '#DBEAFE', '#FEF9C3', '#FCE7F3'];
+const AVATAR_TEXT = ['#15803D', '#2563EB', '#CA8A04', '#9D174D'];
+
+const gridCols = 'grid-cols-[2fr_1fr_1.1fr_1fr_0.8fr]';
+
+function ClientSkeletonRow({ index }: { index: number }) {
+  return (
+    <div className={`grid ${gridCols} items-center px-5 py-3.5 ${index > 0 ? 'border-t border-[var(--color-gray-100)]' : ''}`}>
+      {Array.from({ length: 5 }).map((_, i) => (
+        <div key={i} className="h-4 w-3/4 animate-pulse rounded bg-[var(--color-gray-100)]" />
+      ))}
+    </div>
+  );
+}
+
+function ClientRow({ client, index }: { client: ClientWithStats; index: number }) {
+  const bg = AVATAR_BG[index % AVATAR_BG.length];
+  const text = AVATAR_TEXT[index % AVATAR_TEXT.length];
+  return (
+    <div className={`grid ${gridCols} items-center px-5 py-3.5`}>
+      <div className="flex items-center gap-2.5">
+        <div
+          className="flex h-8 w-8 items-center justify-center rounded-full text-xs font-medium"
+          style={{ backgroundColor: bg, color: text }}
+        >
+          {getInitials(client.full_name)}
+        </div>
+        <div className="flex flex-col">
+          <span className="text-sm text-[var(--color-dark)]">{client.full_name}</span>
+          <span className="text-xs text-[var(--color-gray-400)]">{client.phone ?? 'Sem telefone'}</span>
+        </div>
+      </div>
+      <span className="text-sm text-[var(--color-gray-600)]">{client.total_bookings}</span>
+      <span className="text-sm text-[var(--color-gray-600)]">{formatDate(client.last_booking_date)}</span>
+      <Badge status={client.is_monthly ? 'confirmed' : 'inactive'} className="w-fit">
+        {client.is_monthly ? 'Mensalista' : 'Avulso'}
+      </Badge>
+      <div className="flex gap-3">
+        <Link to={`/app/clientes/${client.id}`} aria-label="Ver cliente">
+          <Eye size={16} strokeWidth={1.5} color="var(--color-gray-600)" className="cursor-pointer" />
+        </Link>
+      </div>
+    </div>
+  );
+}
 
 export default function Clientes() {
+  const { clients, loading, error, search, setSearch } = useClientes();
+
   useAdminHeader({
     title: 'Clientes',
-    subtitle: '127 clientes ativos',
-    action: (
-      <Button variant="primary">
-        <Plus size={16} strokeWidth={1.5} />
-        Novo cliente
-      </Button>
-    ),
+    subtitle: loading ? 'Carregando clientes...' : `${clients.length} cliente${clients.length === 1 ? '' : 's'} encontrado${clients.length === 1 ? '' : 's'}`,
   });
 
   return (
     <div className="flex flex-col gap-4">
       <Card className="flex items-center gap-3">
-        <div className="flex flex-1 items-center gap-2 rounded-[var(--radius-md)] border-[0.5px] border-[#CBD5E1] px-3 py-2">
-          <Search size={16} strokeWidth={1.5} color="var(--color-gray-400)" />
-          <input
+        <div className="relative flex-1">
+          <Search
+            size={16}
+            strokeWidth={1.5}
+            color="var(--color-gray-400)"
+            className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2"
+          />
+          <Input
             placeholder="Buscar por nome ou telefone..."
-            className="flex-1 border-none bg-transparent text-sm text-[var(--color-dark)] placeholder:text-[var(--color-gray-400)] outline-none"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="pl-10"
           />
         </div>
-        <select className="rounded-[var(--radius-md)] border-[0.5px] border-[#CBD5E1] bg-white px-3 py-2 text-[13px] text-[var(--color-dark)]">
-          <option>Todos os planos</option>
-        </select>
       </Card>
 
-      <Card className="overflow-hidden p-0">
-        <div className={`grid ${gridCols} border-b border-[var(--color-gray-200)] bg-[var(--color-gray-50)] px-5 py-3`}>
-          <span className="text-xs font-medium text-[var(--color-gray-600)]">CLIENTE</span>
-          <span className="text-xs font-medium text-[var(--color-gray-600)]">TELEFONE</span>
-          <span className="text-xs font-medium text-[var(--color-gray-600)]">RESERVAS</span>
-          <span className="text-xs font-medium text-[var(--color-gray-600)]">PLANO</span>
-          <span className="text-xs font-medium text-[var(--color-gray-600)]">ÚLTIMA RESERVA</span>
-          <span className="text-xs font-medium text-[var(--color-gray-600)]">AÇÕES</span>
-        </div>
-        {clients.map((c, i) => (
-          <div
-            key={c.name}
-            className={`grid ${gridCols} items-center px-5 py-3.5 ${i > 0 ? 'border-t border-[var(--color-gray-100)]' : ''}`}
-          >
-            <div className="flex items-center gap-2.5">
-              <div
-                className="flex h-8 w-8 items-center justify-center rounded-full text-xs font-medium text-[var(--color-dark)]"
-                style={{ backgroundColor: c.avatarBg }}
-              >
-                {c.initials}
-              </div>
-              <span className="text-sm text-[var(--color-dark)]">{c.name}</span>
-            </div>
-            <span className="text-sm text-[var(--color-gray-600)]">{c.phone}</span>
-            <span className="text-sm text-[var(--color-gray-600)]">{c.total}</span>
-            <Badge status={c.plan} className="w-fit">
-              {c.planLabel}
-            </Badge>
-            <span className="text-sm text-[var(--color-gray-600)]">{c.lastBooking}</span>
-            <div className="flex gap-3">
-              <Link to={`/clientes/${i + 1}`} aria-label="Ver cliente">
-                <Eye size={16} strokeWidth={1.5} color="var(--color-gray-600)" className="cursor-pointer" />
-              </Link>
-              <MessageCircle size={16} strokeWidth={1.5} color="var(--color-gray-600)" className="cursor-pointer" />
-              <Pencil size={16} strokeWidth={1.5} color="var(--color-gray-600)" className="cursor-pointer" />
-            </div>
+      {error ? (
+        <Card className="flex items-center gap-2.5 text-[var(--color-error-text)]">
+          <AlertCircle size={18} strokeWidth={1.5} />
+          <span className="text-sm">{error}</span>
+        </Card>
+      ) : (
+        <Card className="overflow-hidden p-0">
+          <div className={`grid ${gridCols} border-b border-[var(--color-gray-200)] bg-[var(--color-gray-50)] px-5 py-3`}>
+            <span className="text-xs font-medium text-[var(--color-gray-600)]">CLIENTE</span>
+            <span className="text-xs font-medium text-[var(--color-gray-600)]">RESERVAS</span>
+            <span className="text-xs font-medium text-[var(--color-gray-600)]">ÚLTIMO AGENDAMENTO</span>
+            <span className="text-xs font-medium text-[var(--color-gray-600)]">PLANO</span>
+            <span className="text-xs font-medium text-[var(--color-gray-600)]">AÇÕES</span>
           </div>
-        ))}
-      </Card>
+
+          {loading && Array.from({ length: 6 }).map((_, i) => <ClientSkeletonRow key={i} index={i} />)}
+
+          {!loading && clients.length === 0 && (
+            <div className="flex flex-col items-center justify-center gap-3 py-16 text-[var(--color-gray-400)]">
+              <Users size={24} strokeWidth={1.5} />
+              <span className="text-sm">Nenhum cliente encontrado</span>
+            </div>
+          )}
+
+          {!loading &&
+            clients.map((c, i) => (
+              <div key={c.id} className={i > 0 ? 'border-t border-[var(--color-gray-100)]' : ''}>
+                <ClientRow client={c} index={i} />
+              </div>
+            ))}
+        </Card>
+      )}
     </div>
   );
 }

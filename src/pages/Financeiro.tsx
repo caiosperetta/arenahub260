@@ -1,139 +1,234 @@
-import { Wallet, Clock, AlertTriangle, TrendingUp, Download } from 'lucide-react';
-import type { LucideIcon } from 'lucide-react';
+import { TrendingUp, Clock, CalendarCheck, BarChart2, AlertCircle, CheckCircle } from 'lucide-react';
 import Card from '../components/Card';
 import Badge from '../components/Badge';
 import Button from '../components/Button';
 import MetricCard from '../components/MetricCard';
+import { SkeletonMetricCard } from '../components/Skeletons';
 import { useAdminHeader } from '../layouts/AdminHeaderContext';
+import { useFinanceiro } from '../hooks/useFinanceiro';
+import type { BookingStatus, BookingWithRelations, FinanceiroPeriod } from '../types';
 
-interface Metric {
-  icon: LucideIcon;
-  iconColor: string;
-  iconBg: string;
-  label: string;
-  value: string;
-  trend: string;
-  trendType: 'positive' | 'negative' | 'neutral';
+const currencyFormatter = new Intl.NumberFormat('pt-BR', {
+  style: 'currency',
+  currency: 'BRL',
+});
+
+function formatCurrency(value: number): string {
+  return currencyFormatter.format(value);
 }
 
-const financeMetrics: Metric[] = [
-  { icon: Wallet, iconColor: 'var(--color-cyan)', iconBg: 'rgba(6,182,212,0.12)', label: 'Receita do mês', value: 'R$18.420', trend: '+8% vs julho', trendType: 'positive' },
-  { icon: Clock, iconColor: 'var(--color-cyan)', iconBg: 'rgba(6,182,212,0.12)', label: 'A receber', value: 'R$2.140', trend: '12 reservas', trendType: 'neutral' },
-  { icon: AlertTriangle, iconColor: 'var(--color-error)', iconBg: 'var(--color-error-bg)', label: 'Inadimplência', value: 'R$960', trend: '4 clientes', trendType: 'negative' },
-  { icon: TrendingUp, iconColor: 'var(--color-primary)', iconBg: 'var(--color-primary-light)', label: 'Ticket médio', value: 'R$76', trend: '+3% vs julho', trendType: 'positive' },
-];
-
-interface Transaction {
-  date: string;
-  client: string;
-  court: string;
-  desc: string;
-  value: string;
-  status: 'confirmed' | 'pending';
-  label: string;
+function formatDate(dateStr: string): string {
+  const [year, month, day] = dateStr.split('-');
+  return `${day}/${month}/${year}`;
 }
 
-const transactions: Transaction[] = [
-  { date: '07/08/2026', client: 'Maria Silva', court: 'Quadra 2', desc: 'Reserva avulsa', value: 'R$70', status: 'confirmed', label: 'Pago' },
-  { date: '07/08/2026', client: 'Pedro Santos', court: 'Quadra 1', desc: 'Reserva avulsa', value: 'R$80', status: 'pending', label: 'Pendente' },
-  { date: '06/08/2026', client: 'Fernanda Lima', court: 'Quadra 1', desc: 'Mensalidade agosto', value: 'R$320', status: 'confirmed', label: 'Pago' },
-  { date: '06/08/2026', client: 'Carlos Rezende', court: 'Quadra 4', desc: 'Mensalidade agosto', value: 'R$280', status: 'confirmed', label: 'Pago' },
-  { date: '05/08/2026', client: 'Lucas Almeida', court: 'Quadra 4', desc: 'Reserva avulsa', value: 'R$60', status: 'confirmed', label: 'Pago' },
-  { date: '04/08/2026', client: 'Rafael Souza', court: 'Quadra 3', desc: 'Reserva avulsa', value: 'R$90', status: 'pending', label: 'Pendente' },
-  { date: '02/08/2026', client: 'Beatriz Nunes', court: 'Quadra 2', desc: 'Reserva avulsa', value: 'R$70', status: 'pending', label: 'Pendente' },
+function formatTime(timeStr: string): string {
+  return timeStr.slice(0, 5);
+}
+
+const periodOptions: { value: FinanceiroPeriod; label: string }[] = [
+  { value: 'hoje', label: 'Hoje' },
+  { value: '7dias', label: '7 dias' },
+  { value: '30dias', label: '30 dias' },
+  { value: '3meses', label: '3 meses' },
 ];
 
-const overdueClients = [
-  { name: 'Pedro Santos', value: 'R$320', days: 5 },
-  { name: 'Rafael Souza', value: 'R$280', days: 8 },
-  { name: 'Beatriz Nunes', value: 'R$180', days: 3 },
-  { name: 'João Prado', value: 'R$180', days: 12 },
-];
+const statusBadge: Record<BookingStatus, { status: 'confirmed' | 'pending' | 'cancelled'; label: string }> = {
+  confirmed: { status: 'confirmed', label: 'Confirmado' },
+  pending: { status: 'pending', label: 'Pendente' },
+  cancelled: { status: 'cancelled', label: 'Cancelado' },
+  rejected: { status: 'cancelled', label: 'Recusado' },
+};
 
-const txGridCols = 'grid-cols-[0.9fr_1.4fr_1fr_1.4fr_0.9fr_0.9fr]';
+const txGridCols = 'grid-cols-[1.3fr_1fr_0.9fr_0.8fr_0.9fr_0.9fr]';
+
+function PeriodSelector({ period, onChange }: { period: FinanceiroPeriod; onChange: (p: FinanceiroPeriod) => void }) {
+  return (
+    <div className="flex gap-2">
+      {periodOptions.map((opt) => {
+        const active = opt.value === period;
+        return (
+          <button
+            key={opt.value}
+            type="button"
+            onClick={() => onChange(opt.value)}
+            className={
+              active
+                ? 'rounded-[var(--radius-md)] bg-[#22C55E] px-4 py-2 text-sm font-medium text-white transition-colors'
+                : 'rounded-[var(--radius-md)] border-[0.5px] border-[#CBD5E1] px-4 py-2 text-sm font-medium text-[#0F172A] transition-colors hover:bg-[var(--color-gray-50)]'
+            }
+          >
+            {opt.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+function TransactionSkeletonRow({ index }: { index: number }) {
+  return (
+    <div className={`grid ${txGridCols} items-center px-5 py-3.5 ${index > 0 ? 'border-t border-[var(--color-gray-100)]' : ''}`}>
+      {Array.from({ length: 6 }).map((_, i) => (
+        <div key={i} className="h-4 w-3/4 animate-pulse rounded bg-[var(--color-gray-100)]" />
+      ))}
+    </div>
+  );
+}
+
+function TransactionRow({ transaction }: { transaction: BookingWithRelations }) {
+  const badge = statusBadge[transaction.status];
+  return (
+    <div className={`grid ${txGridCols} items-center px-5 py-3.5`}>
+      <span className="text-sm text-[var(--color-dark)]">{transaction.client_full_name}</span>
+      <span className="text-sm text-[var(--color-gray-600)]">{transaction.court_name}</span>
+      <span className="text-sm text-[var(--color-gray-600)]">{formatDate(transaction.date)}</span>
+      <span className="text-sm text-[var(--color-gray-600)]">{formatTime(transaction.start_time)}</span>
+      <span className="text-sm text-[var(--color-dark)]">{formatCurrency(transaction.price)}</span>
+      <Badge status={badge.status} className="w-fit">
+        {badge.label}
+      </Badge>
+    </div>
+  );
+}
+
+function OverdueSkeletonRow({ index }: { index: number }) {
+  return (
+    <div className={`py-3 ${index > 0 ? 'border-t border-[var(--color-gray-100)]' : ''}`}>
+      <div className="mb-2 h-4 w-2/3 animate-pulse rounded bg-[var(--color-gray-100)]" />
+      <div className="h-3 w-1/3 animate-pulse rounded bg-[var(--color-gray-100)]" />
+    </div>
+  );
+}
+
+function OverdueRow({ booking }: { booking: BookingWithRelations }) {
+  return (
+    <div className="py-3">
+      <div className="mb-1 flex justify-between">
+        <span className="text-sm text-[var(--color-dark)]">{booking.client_full_name}</span>
+        <span className="text-sm font-medium text-[var(--color-error-text)]">{formatCurrency(booking.price)}</span>
+      </div>
+      <div className="flex items-center justify-between">
+        <span className="text-xs text-[var(--color-gray-400)]">
+          {booking.court_name} · {formatDate(booking.date)}
+        </span>
+        <Button
+          variant="ghost"
+          className="px-2.5 py-1.5 text-[11px]"
+          onClick={() => alert('Funcionalidade em breve')}
+        >
+          Lembrar
+        </Button>
+      </div>
+    </div>
+  );
+}
 
 export default function Financeiro() {
+  const { metrics, transactions, overdueClients, period, setPeriod, loading, error } = useFinanceiro();
+
   useAdminHeader({
     title: 'Financeiro',
-    subtitle: 'Agosto de 2026',
-    action: (
-      <Button variant="secondary">
-        <Download size={16} strokeWidth={1.5} />
-        Exportar relatório
-      </Button>
-    ),
+    action: <PeriodSelector period={period} onChange={setPeriod} />,
   });
 
   return (
     <div className="flex flex-col gap-5">
       <div className="grid grid-cols-4 gap-4">
-        {financeMetrics.map((m) => (
-          <MetricCard
-            key={m.label}
-            icon={m.icon}
-            iconColor={m.iconColor}
-            iconBg={m.iconBg}
-            label={m.label}
-            value={m.value}
-            trend={m.trend}
-            trendType={m.trendType}
-          />
-        ))}
+        {loading ? (
+          Array.from({ length: 4 }).map((_, i) => <SkeletonMetricCard key={i} />)
+        ) : (
+          <>
+            <MetricCard
+              icon={TrendingUp}
+              iconColor="var(--color-cyan)"
+              iconBg="rgba(6,182,212,0.12)"
+              label="Receita confirmada"
+              value={formatCurrency(metrics.confirmedRevenue)}
+            />
+            <MetricCard
+              icon={Clock}
+              iconColor="#EAB308"
+              iconBg="var(--color-warning-bg)"
+              label="Receita pendente"
+              value={formatCurrency(metrics.pendingRevenue)}
+            />
+            <MetricCard
+              icon={CalendarCheck}
+              iconColor="var(--color-primary)"
+              iconBg="var(--color-primary-light)"
+              label="Total de reservas"
+              value={String(metrics.totalBookings)}
+            />
+            <MetricCard
+              icon={BarChart2}
+              iconColor="var(--color-cyan)"
+              iconBg="rgba(6,182,212,0.12)"
+              label="Ticket médio"
+              value={formatCurrency(metrics.averageTicket)}
+            />
+          </>
+        )}
       </div>
 
-      <div className="flex gap-5">
-        <Card className="w-[64%] overflow-hidden p-0">
-          <div className="border-b border-[var(--color-gray-200)] px-5 py-4 text-[15px] text-[var(--color-dark)]">
-            Transações recentes
-          </div>
-          <div className={`grid ${txGridCols} border-b border-[var(--color-gray-200)] bg-[var(--color-gray-50)] px-5 py-2.5`}>
-            <span className="text-[11px] font-medium text-[var(--color-gray-600)]">DATA</span>
-            <span className="text-[11px] font-medium text-[var(--color-gray-600)]">CLIENTE</span>
-            <span className="text-[11px] font-medium text-[var(--color-gray-600)]">QUADRA</span>
-            <span className="text-[11px] font-medium text-[var(--color-gray-600)]">DESCRIÇÃO</span>
-            <span className="text-[11px] font-medium text-[var(--color-gray-600)]">VALOR</span>
-            <span className="text-[11px] font-medium text-[var(--color-gray-600)]">STATUS</span>
-          </div>
-          {transactions.map((t, i) => (
-            <div
-              key={`${t.date}-${t.client}-${t.desc}`}
-              className={`grid ${txGridCols} items-center px-5 py-3 ${i > 0 ? 'border-t border-[var(--color-gray-100)]' : ''}`}
-            >
-              <span className="text-[13px] text-[var(--color-gray-600)]">{t.date}</span>
-              <span className="text-[13px] text-[var(--color-dark)]">{t.client}</span>
-              <span className="text-[13px] text-[var(--color-gray-600)]">{t.court}</span>
-              <span className="text-[13px] text-[var(--color-gray-600)]">{t.desc}</span>
-              <span className="text-[13px] text-[var(--color-dark)]">{t.value}</span>
-              <Badge status={t.status} className="w-fit">
-                {t.label}
-              </Badge>
+      {error ? (
+        <Card className="flex items-center gap-2.5 text-[var(--color-error-text)]">
+          <AlertCircle size={18} strokeWidth={1.5} />
+          <span className="text-sm">{error}</span>
+        </Card>
+      ) : (
+        <div className="flex gap-5">
+          <Card className="w-[60%] overflow-hidden p-0">
+            <div className="border-b border-[var(--color-gray-200)] px-5 py-4 text-[15px] text-[var(--color-dark)]">
+              Transações
             </div>
-          ))}
-        </Card>
+            <div className={`grid ${txGridCols} border-b border-[var(--color-gray-200)] bg-[var(--color-gray-50)] px-5 py-2.5`}>
+              <span className="text-[11px] font-medium text-[var(--color-gray-600)]">CLIENTE</span>
+              <span className="text-[11px] font-medium text-[var(--color-gray-600)]">QUADRA</span>
+              <span className="text-[11px] font-medium text-[var(--color-gray-600)]">DATA</span>
+              <span className="text-[11px] font-medium text-[var(--color-gray-600)]">HORÁRIO</span>
+              <span className="text-[11px] font-medium text-[var(--color-gray-600)]">VALOR</span>
+              <span className="text-[11px] font-medium text-[var(--color-gray-600)]">STATUS</span>
+            </div>
 
-        <Card className="w-[36%]">
-          <div className="mb-4 flex items-center gap-2">
-            <AlertTriangle size={16} strokeWidth={1.5} color="var(--color-error-text)" />
-            <div className="text-[15px] text-[var(--color-dark)]">Clientes inadimplentes</div>
-          </div>
-          <div className="flex flex-col">
-            {overdueClients.map((o, i) => (
-              <div key={o.name} className={`py-3 ${i > 0 ? 'border-t border-[var(--color-gray-100)]' : ''}`}>
-                <div className="mb-1 flex justify-between">
-                  <span className="text-sm text-[var(--color-dark)]">{o.name}</span>
-                  <span className="text-sm font-medium text-[var(--color-error-text)]">{o.value}</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-xs text-[var(--color-gray-400)]">{o.days} dias em atraso</span>
-                  <Button variant="secondary" className="px-2.5 py-1.5 text-[11px]">
-                    Enviar lembrete
-                  </Button>
-                </div>
+            {loading && Array.from({ length: 6 }).map((_, i) => <TransactionSkeletonRow key={i} index={i} />)}
+
+            {!loading && transactions.length === 0 && (
+              <div className="flex flex-col items-center justify-center gap-3 py-16 text-[var(--color-gray-400)]">
+                <span className="text-sm">Nenhuma transação no período</span>
               </div>
-            ))}
-          </div>
-        </Card>
-      </div>
+            )}
+
+            {!loading &&
+              transactions.map((t, i) => (
+                <div key={t.id} className={i > 0 ? 'border-t border-[var(--color-gray-100)]' : ''}>
+                  <TransactionRow transaction={t} />
+                </div>
+              ))}
+          </Card>
+
+          <Card className="w-[40%]">
+            <div className="mb-4 text-[15px] text-[var(--color-dark)]">Aguardando pagamento</div>
+            <div className="flex flex-col">
+              {loading && Array.from({ length: 4 }).map((_, i) => <OverdueSkeletonRow key={i} index={i} />)}
+
+              {!loading && overdueClients.length === 0 && (
+                <div className="flex flex-col items-center justify-center gap-3 py-16 text-[var(--color-gray-400)]">
+                  <CheckCircle size={24} strokeWidth={1.5} />
+                  <span className="text-sm">Nenhum pagamento pendente</span>
+                </div>
+              )}
+
+              {!loading &&
+                overdueClients.map((o, i) => (
+                  <div key={o.id} className={i > 0 ? 'border-t border-[var(--color-gray-100)]' : ''}>
+                    <OverdueRow booking={o} />
+                  </div>
+                ))}
+            </div>
+          </Card>
+        </div>
+      )}
     </div>
   );
 }

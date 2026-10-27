@@ -124,12 +124,19 @@ create policy "profiles_update_own" on profiles for update using (id = auth.uid(
 
 -- courts
 alter table courts enable row level security;
-create policy "courts_tenant" on courts for all using (tenant_id = get_user_tenant_id() or get_user_role() = 'super_admin');
+grant select, insert, update, delete on public.courts to authenticated;
+create policy "courts_select_tenant" on courts for select using (tenant_id = get_user_tenant_id());
+create policy "courts_insert_tenant" on courts for insert with check (tenant_id = get_user_tenant_id());
+create policy "courts_update_tenant" on courts for update using (tenant_id = get_user_tenant_id());
+create policy "courts_delete_tenant" on courts for delete using (tenant_id = get_user_tenant_id());
 create policy "courts_public_select" on courts for select using (active = true);
 
 -- court_slots
 alter table court_slots enable row level security;
-create policy "slots_tenant" on court_slots for all using (tenant_id = get_user_tenant_id() or get_user_role() = 'super_admin');
+grant select, insert, update, delete on public.court_slots to authenticated;
+create policy "slots_select_tenant" on court_slots for select using (tenant_id = get_user_tenant_id());
+create policy "slots_insert_tenant" on court_slots for insert with check (tenant_id = get_user_tenant_id());
+create policy "slots_delete_tenant" on court_slots for delete using (tenant_id = get_user_tenant_id());
 create policy "slots_public_select" on court_slots for select using (active = true);
 
 -- bookings
